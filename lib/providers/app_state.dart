@@ -768,6 +768,17 @@ class AppState extends ChangeNotifier {
       }
       
       _loadData();
+
+      // Ensure some products are explicitly expired/expiring immediately for demonstration
+      if (_inventory.isNotEmpty) {
+        _inventory[0].expires = DateTime.now().subtract(const Duration(days: 2)).toIso8601String().split('T').first;
+        if (_inventory.length > 1) {
+          _inventory[1].expires = DateTime.now().add(const Duration(days: 1)).toIso8601String().split('T').first;
+        }
+        await _inventoryBox.put(_inventory[0].id, _inventory[0].toJson());
+        if (_inventory.length > 1) await _inventoryBox.put(_inventory[1].id, _inventory[1].toJson());
+      }
+
       _loadEvents();
       await _fixExistingContacts();
 

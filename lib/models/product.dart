@@ -6,14 +6,14 @@ class Product {
   int stock;
   final int threshold;
   final String emoji;
-  final String? expires;
+  String? expires;
   final String shelf;
   final String supplierId;
   final String? barcode;
   final String? imageUrl;
   final String? unit;
   final String? description;
-  final String? mfgDate;
+  String? mfgDate;
 
   Product({
     required this.id,

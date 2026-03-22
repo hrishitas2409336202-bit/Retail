@@ -228,6 +228,9 @@ class _StaffBillingScreenState extends State<StaffBillingScreen> {
         final double discountFactor = promo.id.isNotEmpty ? (1 - (promo.discountPercent / 100)) : 1.0;
         final double currentPrice = p.price * discountFactor;
         final bool isLow = p.stock <= p.threshold;
+        final double daysLeft = state.getDaysRemaining(p.id);
+        final bool isHighRisk = daysLeft < 3 && p.stock > 0;
+        final bool isHighDemand = daysLeft < 7 && daysLeft >= 3 && p.stock > 0;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -270,6 +273,20 @@ class _StaffBillingScreenState extends State<StaffBillingScreen> {
                     if (isLow) ...[
                       const SizedBox(width: 6),
                       Text(state.tr("LOW STOCK"), style: const TextStyle(color: Colors.orangeAccent, fontSize: 9, fontWeight: FontWeight.bold)),
+                    ] else if (isHighRisk) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(4)),
+                        child: const Text("STOCK-OUT RISK", style: TextStyle(color: Colors.redAccent, fontSize: 8, fontWeight: FontWeight.bold)),
+                      ),
+                    ] else if (isHighDemand) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(4)),
+                        child: const Text("HIGH DEMAND", style: TextStyle(color: Colors.greenAccent, fontSize: 8, fontWeight: FontWeight.bold)),
+                      ),
                     ],
                   ],
                 ),

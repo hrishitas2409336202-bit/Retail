@@ -10,6 +10,7 @@ import 'support_screen.dart';
 import 'profile_screen.dart';
 import 'bills_history_screen.dart';
 import '../../models/product.dart';
+import '../admin/admin_extra_widgets.dart';
 import 'dart:ui';
 
 class StaffDashboard extends StatefulWidget {
@@ -195,6 +196,14 @@ class _StaffDashboardState extends State<StaffDashboard> with SingleTickerProvid
                       child: _buildLowStockSection(context, state),
                     ),
                   ),
+
+                // 4b. Expiry Alerts
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                    child: ExpiryAlertBanner(state: state),
+                  ),
+                ),
 
                 // 5. Bills History Banner
                 SliverToBoxAdapter(

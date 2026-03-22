@@ -38,6 +38,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -45,12 +46,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: Colors.white),
+          icon: Icon(LucideIcons.arrowLeft, color: isDark ? Colors.white : Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(state.tr('Profile'),
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
+            style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 20)),
         actions: [
           TextButton(
             onPressed: () {
@@ -160,8 +161,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 16),
                   Text(
                     _nameController.text,
-                    style: const TextStyle(
-                        color: Colors.white,
+                    style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
                         fontSize: 22,
                         fontWeight: FontWeight.bold),
                   ),
@@ -185,7 +186,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     state.storeName,
                     style: TextStyle(
-                        color: Colors.white.withOpacity(0.5), fontSize: 13),
+                        color: isDark ? Colors.white.withOpacity(0.5) : Colors.black54, fontSize: 13),
                   ),
                 ],
               ),
@@ -224,10 +225,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _buildInfoCard([
                     _buildInfoField(
                         state.tr('Full Name'), _nameController, LucideIcons.user),
-                    const Divider(color: Colors.white12, height: 1),
+                    Divider(color: isDark ? Colors.white12 : Colors.black12, height: 1),
                     _buildInfoField(
                         state.tr('Email'), _emailController, LucideIcons.mail),
-                    const Divider(color: Colors.white12, height: 1),
+                    Divider(color: isDark ? Colors.white12 : Colors.black12, height: 1),
                     _buildInfoField(
                         state.tr('Phone'), _phoneController, LucideIcons.phone),
                   ]),
@@ -239,11 +240,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 12),
                     _buildInfoCard([
                       _buildReadonlyField(state.tr('Store'), state.storeName, LucideIcons.store),
-                      const Divider(color: Colors.white12, height: 1),
+                      Divider(color: isDark ? Colors.white12 : Colors.black12, height: 1),
                       _buildReadonlyField(state.tr('Role'), 'Cashier / Staff', LucideIcons.briefcase),
-                      const Divider(color: Colors.white12, height: 1),
+                      Divider(color: isDark ? Colors.white12 : Colors.black12, height: 1),
                       _buildReadonlyField(state.tr('Shift'), 'Morning (8AM - 4PM)', LucideIcons.clock),
-                      const Divider(color: Colors.white12, height: 1),
+                      Divider(color: isDark ? Colors.white12 : Colors.black12, height: 1),
                       _buildReadonlyField(state.tr('Employee ID'), 'EMP-2024-007', LucideIcons.badgeInfo),
                     ]),
                     const SizedBox(height: 24),
@@ -255,9 +256,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B),
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                      border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black12),
+                      boxShadow: isDark ? [] : [
+                        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+                      ],
                     ),
                     child: ListTile(
                       leading: Container(
@@ -275,7 +279,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               fontWeight: FontWeight.bold)),
                       subtitle: Text(state.tr('logout_subtitle'),
                           style: TextStyle(
-                              color: Colors.white.withOpacity(0.4),
+                              color: isDark ? Colors.white.withOpacity(0.4) : Colors.black45,
                               fontSize: 12)),
                       onTap: () {
                         context.read<AppState>().logout();
@@ -295,12 +299,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _sectionHeader(String title) {
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Text(
       title.toUpperCase(),
       style: TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.bold,
-        color: Colors.white.withOpacity(0.4),
+        color: isDark ? Colors.white.withOpacity(0.4) : Colors.black45,
         letterSpacing: 1.5,
       ),
     );
@@ -308,6 +313,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildStatCard(
       String label, String value, IconData icon, Color color, {VoidCallback? onTap}) {
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -329,7 +335,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Text(label,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                      color: Colors.white.withOpacity(0.4), fontSize: 10)),
+                      color: isDark ? Colors.white.withOpacity(0.4) : Colors.black54, fontSize: 10)),
             ],
           ),
         ),
@@ -338,11 +344,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildInfoCard(List<Widget> children) {
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black12),
+        boxShadow: isDark ? [] : [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+        ],
       ),
       child: Column(children: children),
     );
@@ -350,16 +360,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildInfoField(
       String label, TextEditingController controller, IconData icon) {
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: TextField(
         controller: controller,
         enabled: _isEditing,
-        style: const TextStyle(color: Colors.white, fontSize: 14),
+        style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
         decoration: InputDecoration(
           labelText: label,
           labelStyle:
-              TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
+              TextStyle(color: isDark ? Colors.white.withOpacity(0.4) : Colors.black45, fontSize: 12),
           prefixIcon: Icon(icon, color: Colors.blueAccent, size: 18),
           border: InputBorder.none,
         ),
@@ -368,14 +379,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildReadonlyField(String label, String value, IconData icon) {
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
     return ListTile(
       leading: Icon(icon, color: Colors.blueAccent.withOpacity(0.7), size: 18),
       title: Text(label,
           style: TextStyle(
-              color: Colors.white.withOpacity(0.4),
+              color: isDark ? Colors.white.withOpacity(0.4) : Colors.black45,
               fontSize: 11)),
       subtitle: Text(value,
-          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14, fontWeight: FontWeight.w500)),
       dense: true,
     );
   }

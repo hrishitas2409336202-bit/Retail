@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../providers/app_state.dart';
+import '../../theme/app_theme.dart';
 import 'purchase_order_screen.dart';
 
 // ══════════════════════════════════════════════════════
@@ -12,123 +13,147 @@ class ExpiryAlertBanner extends StatelessWidget {
   final AppState state;
   const ExpiryAlertBanner({super.key, required this.state});
 
-  bool _isSoonExpiry(String? exp) {
+  bool _isSoonExpiry(dynamic p) {
+    final exp = p.expires;
     if (exp == null || exp.isEmpty) return false;
+    final date = DateTime.tryParse(exp);
+    if (date != null) {
+      return date.difference(DateTime.now()).inDays <= 5;
+    }
     return exp.contains('hour') ||
         exp.contains('1 day') ||
         exp.contains('2 day') ||
-        exp.contains('3 day');
+        exp.contains('3 day') ||
+        exp.contains('4 day') ||
+        exp.contains('5 day');
   }
 
-  String _urgencyLabel(String? exp) {
+  String _urgencyLabel(dynamic p) {
+    final exp = p.expires;
     if (exp == null || exp.isEmpty) return '';
+    final date = DateTime.tryParse(exp);
+    if (date != null) {
+      final days = date.difference(DateTime.now()).inDays;
+      if (days < 0) return 'EXPIRED';
+      if (days == 0) return 'TODAY';
+      return '$days DAYS';
+    }
     if (exp.contains('hour')) return 'TODAY';
     if (exp.contains('1 day')) return '1 DAY';
     if (exp.contains('2 day')) return '2 DAYS';
     if (exp.contains('3 day')) return '3 DAYS';
+    if (exp.contains('4 day')) return '4 DAYS';
+    if (exp.contains('5 day')) return '5 DAYS';
     return exp;
   }
 
-  Color _urgencyColor(String? exp) {
-    if (exp == null) return Colors.deepOrange;
-    if (exp.contains('hour') || exp.contains('1 day')) return Colors.redAccent;
+  Color _urgencyColor(dynamic p) {
+    final label = _urgencyLabel(p);
+    if (label == 'EXPIRED' || label == 'TODAY' || label == '1 DAY' || label == '2 DAYS') return Colors.redAccent;
     return Colors.deepOrange;
   }
 
   @override
   Widget build(BuildContext context) {
-    final expiring = state.inventory.where((p) => _isSoonExpiry(p.expires)).toList();
+    final expiring = state.inventory.where((p) => _isSoonExpiry(p)).toList();
     if (expiring.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.deepOrange.withOpacity(0.15), Colors.red.withOpacity(0.07)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.deepOrange.withOpacity(0.35)),
-        boxShadow: [BoxShadow(color: Colors.deepOrange.withOpacity(0.12), blurRadius: 14)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Colors.deepOrange, Colors.redAccent]),
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [BoxShadow(color: Colors.deepOrange.withOpacity(0.4), blurRadius: 8)],
-                ),
-                child: const Icon(LucideIcons.calendarX, color: Colors.white, size: 16),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFFEAB308), Color(0xFFF97316)]),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [BoxShadow(color: Colors.orangeAccent.withOpacity(0.3), blurRadius: 8)],
               ),
-              const SizedBox(width: 10),
-              Column(
+              child: const Icon(LucideIcons.calendarClock, color: Colors.white, size: 16),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('⚠ Expiry Alert',
-                      style: TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.bold, fontSize: 15)),
+                  Text('Expiry Alerts',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold,
+                          color: AppTheme.textHeading(context))),
                   Text(
                     '${expiring.length} product${expiring.length > 1 ? "s" : ""} expiring very soon',
-                    style: TextStyle(color: Colors.deepOrange.withOpacity(0.7), fontSize: 11),
+                    style: TextStyle(fontSize: 11, color: AppTheme.textBody(context)),
                   ),
                 ],
               ),
-            ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.cardBg(context),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppTheme.divider(context)),
+            boxShadow: [BoxShadow(color: Colors.orangeAccent.withOpacity(0.05), blurRadius: 20)],
           ),
-          const SizedBox(height: 12),
-          // Product list
-          ...expiring.map((p) {
-            final labelColor = _urgencyColor(p.expires);
-            final label = _urgencyLabel(p.expires);
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: labelColor.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: labelColor.withOpacity(0.2)),
-              ),
-              child: Row(
-                children: [
-                  Text(p.emoji, style: const TextStyle(fontSize: 22)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(p.name,
-                            style: const TextStyle(
-                                color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
-                        Text('Stock: ${p.stock} units  •  ${p.expires ?? ""}',
-                            style: const TextStyle(color: Colors.white38, fontSize: 10)),
-                      ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: expiring.map((p) {
+              final labelColor = _urgencyColor(p);
+              final label = _urgencyLabel(p);
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: labelColor.withOpacity(0.07),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: labelColor.withOpacity(0.25)),
+                ),
+                child: Row(
+                  children: [
+                    Text(p.emoji, style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(p.name,
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13,
+                                  color: AppTheme.textHeading(context)),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 4),
+                          Text('Stock: ${p.stock} units  •  ${p.expires ?? ""}',
+                              style: TextStyle(color: AppTheme.textBody(context), fontSize: 9)),
+                        ],
+                      ),
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: labelColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: labelColor.withOpacity(0.4)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: labelColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: labelColor.withOpacity(0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(LucideIcons.alertCircle, color: labelColor, size: 10),
+                          const SizedBox(width: 3),
+                          Text(label, style: TextStyle(color: labelColor, fontWeight: FontWeight.bold, fontSize: 10)),
+                        ],
+                      ),
                     ),
-                    child: Text(label,
-                        style: TextStyle(
-                            color: labelColor, fontWeight: FontWeight.bold, fontSize: 11)),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
     );
   }
 }

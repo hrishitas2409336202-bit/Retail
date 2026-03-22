@@ -102,6 +102,14 @@ class _AdminDashboardState extends State<AdminDashboard>
                   ),
                 ),
 
+                // 4b. Expiry Alert
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                    child: ExpiryAlertBanner(state: state),
+                  ),
+                ),
+
                 // 4b. Predictive Intelligence Banner
                 SliverToBoxAdapter(
                   child: Padding(
@@ -131,14 +139,6 @@ class _AdminDashboardState extends State<AdminDashboard>
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
                     child: _buildDemandTrendsCard(context, state),
-                  ),
-                ),
-
-                // 4f. Expiry Alert
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                    child: ExpiryAlertBanner(state: state),
                   ),
                 ),
 

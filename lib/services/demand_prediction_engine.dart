@@ -39,7 +39,18 @@ class DemandPredictionEngine {
   }
 
   static List<Map<String, dynamic>> getAllPredictions(List<Product> products, List<Sale> sales) {
-    return products.map((p) => predictDemand(p, sales)).toList();
+    var predictions = products.map((p) => predictDemand(p, sales)).toList();
+    predictions.sort((a, b) {
+      int restockA = a['suggestedRestock'] as int;
+      int restockB = b['suggestedRestock'] as int;
+      if (restockA != restockB) {
+        return restockB.compareTo(restockA);
+      }
+      double demandA = a['predictedDemand'] as double;
+      double demandB = b['predictedDemand'] as double;
+      return demandB.compareTo(demandA);
+    });
+    return predictions;
   }
 }
 

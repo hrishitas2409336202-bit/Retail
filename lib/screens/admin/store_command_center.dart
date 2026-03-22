@@ -14,6 +14,7 @@ import 'admin_inventory_screen.dart';
 import '../../widgets/sales_heatmap.dart';
 import '../staff/profile_screen.dart';
 import '../staff/support_screen.dart';
+import 'admin_extra_widgets.dart';
 
 class StoreCommandCenter extends StatelessWidget {
   const StoreCommandCenter({super.key});
@@ -57,6 +58,9 @@ class StoreCommandCenter extends StatelessWidget {
             // 2. AI Business Advisor Widget
             _buildAIAdvisorWidget(context, suggestions),
             const SizedBox(height: 24),
+
+            // 2b. Expiry Alert
+            ExpiryAlertBanner(state: state),
 
             // 3. Inventory Risk Radar
             _buildRiskRadar(context, state),
