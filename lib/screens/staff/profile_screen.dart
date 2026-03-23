@@ -61,7 +61,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     storeName: state.storeName,
                     upiId: state.upiId,
                     upiName: state.upiName,
-                    threshold: state.globalThreshold,
+                    globalThreshold: state.globalThreshold,
                     currency: state.currency,
                     taxRate: state.taxRate,
                     ownerName: _nameController.text,

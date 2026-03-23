@@ -18,7 +18,10 @@ class ExpiryAlertBanner extends StatelessWidget {
     if (exp == null || exp.isEmpty) return false;
     final date = DateTime.tryParse(exp);
     if (date != null) {
-      return date.difference(DateTime.now()).inDays <= 5;
+      // Compare date-only (strip time) to avoid "today" on products expiring tomorrow
+      final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+      final expiryDay = DateTime(date.year, date.month, date.day);
+      return expiryDay.difference(today).inDays <= 5;
     }
     return exp.contains('hour') ||
         exp.contains('1 day') ||
@@ -33,9 +36,13 @@ class ExpiryAlertBanner extends StatelessWidget {
     if (exp == null || exp.isEmpty) return '';
     final date = DateTime.tryParse(exp);
     if (date != null) {
-      final days = date.difference(DateTime.now()).inDays;
+      // Use date-only comparison to get accurate day count
+      final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+      final expiryDay = DateTime(date.year, date.month, date.day);
+      final days = expiryDay.difference(today).inDays;
       if (days < 0) return 'EXPIRED';
       if (days == 0) return 'TODAY';
+      if (days == 1) return 'TOMORROW';
       return '$days DAYS';
     }
     if (exp.contains('hour')) return 'TODAY';
@@ -49,8 +56,9 @@ class ExpiryAlertBanner extends StatelessWidget {
 
   Color _urgencyColor(dynamic p) {
     final label = _urgencyLabel(p);
-    if (label == 'EXPIRED' || label == 'TODAY' || label == '1 DAY' || label == '2 DAYS') return Colors.redAccent;
-    return Colors.deepOrange;
+    if (label == 'EXPIRED' || label == 'TODAY') return Colors.redAccent;
+    if (label == 'TOMORROW' || label == '2 DAYS' || label == '1 DAY') return Colors.deepOrange;
+    return Colors.amber;
   }
 
   @override

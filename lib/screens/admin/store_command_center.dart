@@ -435,24 +435,6 @@ class StoreCommandCenter extends StatelessWidget {
     );
   }
 
-  Widget _languageDropdown(BuildContext context, AppState state) {
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<String>(
-        value: state.currentLanguage,
-        icon: const Icon(LucideIcons.globe, size: 18),
-        items: ['English', 'Hindi', 'Marathi'].map((String value) {
-          return DropdownMenuItem<String>(
-            value: value,
-            child: Text(value, style: const TextStyle(fontSize: 12)),
-          );
-        }).toList(),
-        onChanged: (val) {
-          if (val != null) state.setLanguage(val);
-        },
-      ),
-    );
-  }
-
   Color _getColor(String? type) {
     switch (type) {
       case 'critical': return Colors.red;

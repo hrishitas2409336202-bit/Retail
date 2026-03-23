@@ -6,6 +6,7 @@ import '../../services/ai_service.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:permission_handler/permission_handler.dart';
 import 'dart:math';
 
 class AIAdvisorChat extends StatefulWidget {
@@ -24,13 +25,13 @@ class _AIAdvisorChatState extends State<AIAdvisorChat>
   bool _isSpeaking = false;
   String? _speakingMsgId; // which message is being read aloud
   late FlutterTts _tts;
-  late stt.SpeechToText _speech;
-  bool _isListening = false;
-  double _voiceLevel = 0.0;
   late AnimationController _typingController;
   late Animation<double> _typingAnim;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnim;
+
+  late stt.SpeechToText _speech;
+  bool _isListening = false;
 
   final List<Map<String, String>> _quickSuggestions = [
     {'text': 'What should I restock today?', 'icon': '📦'},
@@ -56,37 +57,9 @@ class _AIAdvisorChatState extends State<AIAdvisorChat>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    _initTts();
-    _initSpeech();
-    _loadInitialInsights();
-  }
-
-  Future<void> _initSpeech() async {
     _speech = stt.SpeechToText();
-  }
-
-  Future<void> _startListening() async {
-    bool available = await _speech.initialize(
-      onStatus: (val) {
-        if (val == 'done' || val == 'notListening') setState(() => _isListening = false);
-      },
-      onError: (val) => setState(() => _isListening = false),
-    );
-    if (available) {
-      setState(() => _isListening = true);
-      _speech.listen(
-        onResult: (val) {
-          setState(() {
-            _controller.text = val.recognizedWords;
-          });
-        },
-      );
-    }
-  }
-
-  Future<void> _stopListening() async {
-    await _speech.stop();
-    setState(() => _isListening = false);
+    _initTts();
+    _loadInitialInsights();
   }
 
   Future<void> _initTts() async {
@@ -127,11 +100,61 @@ class _AIAdvisorChatState extends State<AIAdvisorChat>
   @override
   void dispose() {
     _tts.stop();
+    _speech.stop();
     _typingController.dispose();
     _pulseController.dispose();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _listen() async {
+    if (!_isListening) {
+      // 1. Explicitly ask for mic permission first
+      var status = await Permission.microphone.status;
+      if (!status.isGranted) {
+        status = await Permission.microphone.request();
+      }
+
+      if (status.isGranted) {
+        // 2. Initialize and start listening
+        bool available = await _speech.initialize(
+          onStatus: (val) {
+            if (val == 'done' || val == 'notListening') {
+              if (mounted) setState(() => _isListening = false);
+            }
+          },
+          onError: (val) {
+            if (mounted) setState(() => _isListening = false);
+          },
+        );
+        if (available) {
+          if (mounted) setState(() => _isListening = true);
+          _speech.listen(
+            onResult: (val) {
+              if (mounted) {
+                setState(() {
+                  _controller.text = val.recognizedWords;
+                });
+              }
+            },
+          );
+        }
+      } else {
+        // User denied permission
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Microphone permission is required to use voice input.')),
+          );
+        }
+      }
+    } else {
+      if (mounted) setState(() => _isListening = false);
+      _speech.stop();
+      if (_controller.text.trim().isNotEmpty) {
+        _sendMessage();
+      }
+    }
   }
 
   Future<void> _loadInitialInsights() async {
@@ -155,58 +178,112 @@ class _AIAdvisorChatState extends State<AIAdvisorChat>
         "• 🧾 Bills processed: $bills\n"
         "• 📦 Products: $inventoryCount\n"
         "${lowStockCount > 0 ? '• ⚠️ $lowStockCount products need restocking!\n' : '• ✅ All stocks look healthy!\n'}"
-        "\nWhat can I help you with today?";
+        "\nLet me walk you through today's key insights... 👇";
 
-    final msgId = 'msg_0';
     setState(() {
-      _messages.add({'role': 'ai', 'id': msgId, 'text': ''});
-      _isLoading = false;
+      _messages.add({'role': 'ai', 'id': 'msg_0', 'text': welcomeMsg});
+      _isLoading = true;
     });
-    await _simulateStreaming(welcomeMsg, msgId);
+    _scrollToBottom();
 
+    // --- Insight 1: Low Stock Alert ---
+    await Future.delayed(const Duration(milliseconds: 1200));
+    if (!mounted) return;
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
     if (lowStockCount > 0) {
-      await Future.delayed(const Duration(milliseconds: 1000));
-      if (!mounted) return;
       final lowProducts = state.lowStockProducts
           .take(3)
-          .map((p) => "${p.emoji} **${p.name}** (${p.stock} left)")
+          .map((p) => "${p.emoji} **${p.name}** — only ${p.stock} left")
           .join('\n');
-      
-      final alertId = 'msg_alert';
       setState(() {
         _messages.add({
           'role': 'ai',
-          'id': alertId,
-          'text': '',
+          'id': 'msg_stock',
+          'text': '🚨 **Urgent Restock Alert!**\n\n$lowProducts\n\nShould I draft purchase orders for these items?',
         });
-      });
-      await _simulateStreaming('🚨 **Urgent Restock Alert!**\n\n$lowProducts\n\nShould I draft purchase orders for these items?', alertId);
-    }
-  }
-
-  Future<void> _simulateStreaming(String fullText, String msgId) async {
-    final words = fullText.split(' ');
-    String currentText = "";
-    for (var word in words) {
-      if (!mounted) return;
-      currentText += "$word ";
-      setState(() {
-        final idx = _messages.indexWhere((m) => m['id'] == msgId);
-        if (idx != -1) {
-          _messages[idx] = {..._messages[idx], 'text': currentText.trim()};
-        }
+        _isLoading = true;
       });
       _scrollToBottom();
-      await Future.delayed(Duration(milliseconds: 30 + Random().nextInt(40)));
     }
+
+    // --- Insight 2: Revenue & Sales Summary ---
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (!mounted) return;
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+    final avgBill = bills > 0 ? (revenue / bills).toInt() : 0;
+    final revenueMsg = revenue > 0
+        ? '💰 **Today\'s Sales Summary**\n\n'
+          '• Total Revenue: **${state.currency}${revenue.toInt()}**\n'
+          '• Bills Completed: **$bills**\n'
+          '• Avg Bill Value: **${state.currency}$avgBill**\n\n'
+          '${avgBill >= 500 ? "🎯 Great job! Avg bill is above ₹500 target." : "📈 Tip: Upsell combos to push avg bill above ₹500."}'
+        : '💡 **No sales recorded yet today.**\n\nMake your first sale — the dashboard updates instantly after every checkout!';
+    setState(() {
+      _messages.add({'role': 'ai', 'id': 'msg_revenue', 'text': revenueMsg});
+      _isLoading = true;
+    });
+    _scrollToBottom();
+
+    // --- Insight 3: Expiry Alert ---
+    final expiringProducts = state.inventory.where((p) {
+      if (p.expires == null || p.expires!.isEmpty) return false;
+      final date = DateTime.tryParse(p.expires!);
+      if (date == null) return false;
+      final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+      final expDay = DateTime(date.year, date.month, date.day);
+      return expDay.difference(today).inDays <= 3;
+    }).toList();
+
+    await Future.delayed(const Duration(milliseconds: 1600));
+    if (!mounted) return;
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
+    if (expiringProducts.isNotEmpty) {
+      final expList = expiringProducts.take(3).map((p) {
+        final date = DateTime.tryParse(p.expires!)!;
+        final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+        final days = DateTime(date.year, date.month, date.day).difference(today).inDays;
+        final label = days < 0 ? '🔴 EXPIRED' : days == 0 ? '🔴 TODAY' : days == 1 ? '🟠 TOMORROW' : '🟡 $days days left';
+        return "${p.emoji} **${p.name}** — $label";
+      }).join('\n');
+      setState(() {
+        _messages.add({
+          'role': 'ai',
+          'id': 'msg_expiry',
+          'text': '⚠️ **Expiry Alert!**\n\n$expList\n\nConsider a quick discount to clear these before they expire.',
+        });
+        _isLoading = true;
+      });
+      _scrollToBottom();
+    }
+
+    // --- Insight 4: Top Sellers ---
+    await Future.delayed(const Duration(milliseconds: 1800));
+    if (!mounted) return;
+    await Future.delayed(const Duration(milliseconds: 900));
+    if (!mounted) return;
+    final leaderboard = state.getLeaderboard();
+    final topMsg = leaderboard.isNotEmpty
+        ? '🏆 **Today\'s Top Sellers**\n\n'
+          '${leaderboard.take(3).map((e) => "${e['emoji']} **${e['name']}** — ${e['sold']} units sold").join('\n')}\n\n'
+          'These are flying off shelves — make sure stock is ready!'
+        : '📊 **No top sellers yet today.**\n\nCheck back after a few sales — I\'ll rank your best performers here!';
+    setState(() {
+      _messages.add({'role': 'ai', 'id': 'msg_top', 'text': topMsg});
+      _isLoading = false;
+    });
+    _scrollToBottom();
   }
+
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
+          duration: const Duration(milliseconds: 400),
           curve: Curves.easeOut,
         );
       }
@@ -219,7 +296,7 @@ class _AIAdvisorChatState extends State<AIAdvisorChat>
     HapticFeedback.lightImpact();
     final state = context.read<AppState>();
     final lang = state.currentLanguage;
-    final msgId = 'user_${DateTime.now().millisecondsSinceEpoch}';
+    final msgId = 'msg_${_messages.length}';
 
     setState(() {
       _messages.add({'role': 'user', 'id': msgId, 'text': query});
@@ -228,20 +305,26 @@ class _AIAdvisorChatState extends State<AIAdvisorChat>
     _controller.clear();
     _scrollToBottom();
 
-    final history = _messages.length > 8
-        ? _messages.sublist(_messages.length - 8)
-        : _messages;
+    final enrichedQuery = '''
+Store: ${state.storeName}
+Revenue Today: ${state.currency}${state.todayRevenue.toInt()}
+Bills Today: ${state.todayBillsCount}
+Low Stock: ${state.lowStockCount} items
+User asked: $query
+    ''';
+
+    final history = _messages.toList(); // Simplified history as AIService handles take()
 
     final answer = await AIService.getAIAdvice(
-        query, "Smart Analysis", state.inventory, state.sales, lang, history);
+        query, state.storeName, state.inventory, state.sales, lang, history, state.githubToken);
 
     if (mounted) {
-      final aiMsgId = 'ai_${DateTime.now().millisecondsSinceEpoch}';
+      final aiMsgId = 'msg_${_messages.length}';
       setState(() {
+        _messages.add({'role': 'ai', 'id': aiMsgId, 'text': answer});
         _isLoading = false;
-        _messages.add({'role': 'ai', 'id': aiMsgId, 'text': ''});
       });
-      await _simulateStreaming(answer, aiMsgId);
+      _scrollToBottom();
     }
   }
 
@@ -594,18 +677,45 @@ class _AIAdvisorChatState extends State<AIAdvisorChat>
                 maxLines: 3,
                 minLines: 1,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
-                decoration: const InputDecoration(
-                  hintText: 'Ask about stock, sales, business advice…',
-                  hintStyle: TextStyle(color: Colors.white24, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: _isListening ? 'Listening...' : 'Ask about stock, sales, business advice…',
+                  hintStyle: TextStyle(
+                    color: _isListening ? Colors.redAccent.withValues(alpha: 0.8) : Colors.white24, 
+                    fontSize: 13,
+                  ),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           GestureDetector(
-            onTap: () => _sendMessage(),
+            onTap: _listen,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _isListening ? Colors.redAccent.withValues(alpha: 0.2) : const Color(0xFF1E293B),
+                border: Border.all(color: _isListening ? Colors.redAccent : Colors.white12),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Icon(
+                _isListening ? LucideIcons.mic : LucideIcons.micOff, 
+                color: _isListening ? Colors.redAccent : Colors.white60, 
+                size: 18
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () {
+               if (_isListening) {
+                 _speech.stop();
+                 setState(() => _isListening = false);
+               }
+               _sendMessage();
+            },
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -626,28 +736,8 @@ class _AIAdvisorChatState extends State<AIAdvisorChat>
               child: const Icon(LucideIcons.send, color: Colors.white, size: 18),
             ),
           ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: _isListening ? _stopListening : _startListening,
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _isListening ? Colors.redAccent.withOpacity(0.15) : const Color(0xFF1A1F35),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: _isListening ? Colors.redAccent : const Color(0xFF6C63FF).withValues(alpha: 0.2),
-                ),
-              ),
-              child: Icon(
-                _isListening ? LucideIcons.mic : LucideIcons.micOff,
-                color: _isListening ? Colors.redAccent : Colors.white30,
-                size: 18,
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
 }
-

@@ -1,17 +1,10 @@
 import 'package:openfoodfacts/openfoodfacts.dart' as off;
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import '../models/product.dart' as model;
 import '../models/sale.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class AIService {
-  // ── GitHub AI Brain Configuration ─────────────────────────────────────────
-  // Replace with your GitHub Token (settings -> Developer -> Personal access tokens)
-  static String githubToken = ''; // USER can set this or I'll provide a placeholder
-  static const String githubEndpoint = 'https://models.inference.ai.azure.com/chat/completions';
-  static const String githubModel = 'gpt-4o'; // Powerful model for retail analysis
-
   // ── Local Knowledge Base ─────────────────────────────────────────────────
   static const Map<String, Map<String, dynamic>> _localKB = {
     '7622300699710': {
@@ -91,7 +84,6 @@ class AIService {
     },
   };
 
-  // ── Emoji mapping ────────────────────────────────────────────────────────
   static String _getEmojiForCategory(String? categories) {
     if (categories == null) return '📦';
     final cats = categories.toLowerCase();
@@ -109,12 +101,8 @@ class AIService {
     return '📦';
   }
 
-  // ── OpenFoodFacts Lookup ─────────────────────────────────────────────────
   static Future<Map<String, dynamic>?> getProductFromBarcode(String barcode) async {
-    // 1. Check local knowledge base first
     if (_localKB.containsKey(barcode)) return Map<String, dynamic>.from(_localKB[barcode]!);
-
-    // 2. Query OpenFoodFacts
     try {
       final off.ProductQueryConfiguration configuration = off.ProductQueryConfiguration(
         barcode,
@@ -122,14 +110,11 @@ class AIService {
         fields: [off.ProductField.ALL],
         version: off.ProductQueryVersion.v3,
       );
-
       final off.ProductResultV3 result = await off.OpenFoodAPIClient.getProductV3(configuration);
-
       if (result.status == off.ProductResultV3.statusSuccess && result.product != null) {
         final product = result.product!;
         final rawName = product.productName ?? '';
         if (rawName.isEmpty) return null;
-
         return {
           'name': rawName,
           'price': 0.0,
@@ -143,13 +128,128 @@ class AIService {
           'expires': null,
         };
       }
-    } catch (e) {
-      // silently fail, caller shows manual entry
-    }
+    } catch (e) {}
     return null;
   }
 
-  // ── Rule-based AI Advisor ────────────────────────────────────────────────
+  // ── GitHub Models AI Integration ─────────────────────────────────────────
+  static Future<String> getAIAdvice(
+    String query,
+    String storeName,
+    List<model.Product> inventory,
+    List<Sale> sales,
+    String language,
+    List<Map<String, String>> history,
+    String token,
+  ) async {
+    if (token.isEmpty) {
+      return generateRuleBasedResponse(query, inventory, sales, history);
+    }
+
+    final contextInfo = _buildStoreContext(storeName, inventory, sales, language);
+    
+    final List<Map<String, String>> messages = [
+      {
+        'role': 'system',
+        'content': '''You are "RetailIQ Advisor", a brilliant AI retail consultant for $storeName.
+Your goal is to provide actionable, data-driven advice based on the provided store data.
+Current Language: $language (Reply in this language if possible, otherwise English).
+
+STORE DATA:
+$contextInfo
+
+INSTRUCTIONS:
+1. Be concise, professional, and helpful.
+2. Use emojis to make the chat friendly.
+3. If asked about stock, refer to specific quantities.
+4. If asked about revenue, give today's totals.
+5. If the data doesn't contain the answer, say you are still gathering that information.
+6. Format your response clearly with bold text for product names or numbers.'''
+      }
+    ];
+
+    for (var m in history.reversed.take(5).toList().reversed) {
+      messages.add({
+        'role': m['role'] == 'user' ? 'user' : 'assistant',
+        'content': m['text'] ?? '',
+      });
+    }
+
+    messages.add({'role': 'user', 'content': query});
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://models.inference.ai.azure.com/chat/completions'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'messages': messages,
+          'model': 'gpt-4o',
+          'temperature': 0.7,
+          'max_tokens': 1000,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['choices'][0]['message']['content'].toString().trim();
+      } else {
+        return "Sorry, I'm having trouble connecting to my brain right now (Error: ${response.statusCode}). Let's try again in a moment! 🧠💤";
+      }
+    } catch (e) {
+      return "I encountered a technical glitch while thinking. Please check your internet connection! 🌐";
+    }
+  }
+
+  static String _buildStoreContext(String storeName, List<model.Product> inventory, List<Sale> sales, String lang) {
+    final now = DateTime.now();
+    
+    // 1. Basic Metrics
+    final todaySales = sales.where((s) => s.date.day == now.day && s.date.month == now.month && s.date.year == now.year).toList();
+    final revenue = todaySales.fold(0.0, (a, b) => a + b.total);
+    final totalInventoryValue = inventory.fold(0.0, (sum, p) => sum + (p.stock * p.price));
+
+    // 2. Inventory Breakdown
+    final lowStock = inventory.where((p) => p.stock <= p.threshold).toList();
+    final outOfStock = inventory.where((p) => p.stock == 0).length;
+    final Map<String, int> categories = {};
+    for (var p in inventory) categories[p.category] = (categories[p.category] ?? 0) + 1;
+
+    // 3. Performance (Last 7 Days)
+    final Map<String, double> dailyPerf = {};
+    for (int i = 0; i < 7; i++) {
+       final day = now.subtract(Duration(days: i));
+       final dayTotal = sales.where((s) => s.date.day == day.day && s.date.month == day.month && s.date.year == day.year)
+                             .fold(0.0, (a, b) => a + b.total);
+       dailyPerf["${day.day}/${day.month}"] = dayTotal;
+    }
+
+    // 4. Products expiring in next 30 days
+    final expiringSoon = inventory.where((p) => p.expires != null && p.expires!.isNotEmpty).take(5).toList();
+
+    return '''
+- Store Name: $storeName
+- REVENUE TODAY: $revenue
+- TOTAL BILLS: ${todaySales.length}
+- TOTAL INVENTORY VALUE: $totalInventoryValue
+- CATEGORIES: ${categories.entries.map((e) => "${e.key}(${e.value})").join(", ")}
+- LOW STOCK ALERT: ${lowStock.length} items (${lowStock.take(5).map((p) => "${p.name}: ${p.stock}").join(", ")}...)
+- OUT OF STOCK: $outOfStock items
+- TOP SELLING TODAY: ${_getTopSellingNames(todaySales, inventory)}
+- PERFORMANCE (Last 7 Days): ${dailyPerf.entries.map((e) => "${e.key}: ${e.value}").join(" | ")}
+- EXPIRY SNAPSHOT: ${expiringSoon.map((p) => "${p.name}(Exp: ${p.expires})").join(", ")}
+''';
+  }
+
+  static String _getTopSellingNames(List<Sale> sales, List<model.Product> inventory) {
+    final Map<String, int> counts = {};
+    for (var s in sales) for (var i in s.items) counts[i.name] = (counts[i.name] ?? 0) + i.qty;
+    final sorted = counts.entries.toList()..sort((a,b) => b.value.compareTo(a.value));
+    return sorted.take(3).map((e) => "${e.key} (${e.value} units)").join(", ");
+  }
+
   static String generateRuleBasedResponse(
     String query,
     List<model.Product> inventory,
@@ -157,183 +257,10 @@ class AIService {
     List<Map<String, String>>? history,
   ]) {
     query = query.toLowerCase().trim();
-
-    String? prevTopic;
-    if (history != null && history.isNotEmpty) {
-      try {
-        final lastAI = history.lastWhere((m) => m['role'] == 'ai');
-        final lastText = lastAI['text']!.toLowerCase();
-        if (lastText.contains('stock') || lastText.contains('restock')) prevTopic = 'stock';
-        else if (lastText.contains('expir') || lastText.contains('fresh')) prevTopic = 'expiry';
-        else if (lastText.contains('revenue') || lastText.contains('sale')) prevTopic = 'revenue';
-      } catch (_) {}
+    if (query.contains('revenue') || query.contains('sale')) {
+      final total = sales.where((s) => s.date.day == DateTime.now().day).fold(0.0, (a, b) => a + b.total);
+      return "Today's revenue is ${total.toInt()}. 💰";
     }
-
-    final isGreeting = RegExp(r'\b(hi|hello|hey|morning|evening)\b').hasMatch(query);
-    final hasBusinessKeyword = RegExp(r'\b(stock|restock|expir|date|sale|revenue|top|others|more|detail)\b').hasMatch(query);
-
-    if (isGreeting && !hasBusinessKeyword) {
-      final hour = DateTime.now().hour;
-      final timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-      return "$timeGreeting! I've been reviewing your store data. We have some products moving fast today — what would you like me to look into first? 😊";
-    }
-
-    if (RegExp(r'\b(stock|stok|restock|restok|empty|fill|low|inventory)\b').hasMatch(query) ||
-        ((query.contains('other') || query.contains('more')) && prevTopic == 'stock')) {
-      final lowStock = inventory.where((p) => p.stock <= p.threshold).toList();
-      if (lowStock.isEmpty) return "Everything is well-stocked right now. I'll keep an eye out for you! ✅";
-      if (query.contains('other') || query.contains('more') || query.contains('list')) {
-        final slice = lowStock.length > 3 ? lowStock.sublist(0, 3) : lowStock;
-        final lines = slice.map((p) => "• **${p.name}** (${p.stock} left)").join("\n");
-        return "Here are the items needing attention:\n$lines\n\nShould I help you draft purchase orders? 📦";
-      }
-      final p = lowStock.first;
-      return "**${p.name}** is down to just ${p.stock} units. We should restock before the next rush! 📦";
-    }
-
-    if (RegExp(r'\b(expir|date|spoil|old|fresh)\b').hasMatch(query) ||
-        ((query.contains('other') || query.contains('more')) && prevTopic == 'expiry')) {
-      final expiring = inventory.where((p) => p.expires != null && (p.expires!.contains('day') || p.expires!.contains('hour'))).toList();
-      if (expiring.isEmpty) return "Everything looks fresh! No expiry risks found today. ✨";
-      final p = expiring.first;
-      return "**${p.name}** is approaching its expiry. Consider creating a clearance promotion today! ⏰";
-    }
-
-    if (RegExp(r'\b(top|best|popular|trend|sell|most)\b').hasMatch(query)) {
-      final Map<String, int> demand = {};
-      for (var sale in sales) {
-        for (var item in sale.items) {
-          demand[item.name] = (demand[item.name] ?? 0) + item.qty;
-        }
-      }
-      final sorted = demand.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-      if (sorted.isEmpty) return "Waiting for the first few sales of the day to identify trends. 📈";
-      return "**${sorted.first.key}** is the star of the show today! It's moving faster than anything else. 🏆";
-    }
-
-    if (RegExp(r'\b(revenue|money|sale|cash|today|profit|income)\b').hasMatch(query)) {
-      final today = DateTime.now();
-      final todaySales = sales.where((s) => s.date.day == today.day && s.date.month == today.month);
-      double total = todaySales.fold(0, (a, b) => a + b.total);
-      if (total == 0) return "No revenue recorded yet today, but the day is young! 🚀";
-      return "We've reached **${total.toInt()}** in revenue today across ${todaySales.length} bills. Great progress! 💰";
-    }
-    // ── Fuzzy Product Search Fallback ──────────────────────────────────────
-    // If we haven't matched a broad category, look for specific product names
-    final queryWords = query.split(RegExp(r'\s+'));
-    for (var p in inventory) {
-      final nameLower = p.name.toLowerCase();
-      // Check if product name is in query or if any word in query matches product name
-      bool match = query.contains(nameLower) || nameLower.contains(query);
-      if (!match) {
-        for (var word in queryWords) {
-          if (word.length > 3 && (nameLower.contains(word) || word.contains(nameLower))) {
-            match = true; break;
-          }
-        }
-      }
-      
-      if (match) {
-        return "I found **${p.name}** in the records. You currently have **${p.stock}** units in stock. The selling price is **₹${p.price.toInt()}**. Is there anything else about this product you'd like to know? 🧐";
-      }
-    }
-
-    return "I'm analyzing your store data. Ask me about stock levels, expiry dates, top sellers, or today's revenue! 😊";
-  }
-
-  // ── Smart AI Brain (GitHub Models) ───────────────────────────────────────
-  static Future<String> getAIAdvice(
-    String query,
-    String context, // Summary data from AppState
-    List<model.Product> inventory,
-    List<Sale> sales,
-    String language,
-    List<Map<String, String>> history,
-  ) async {
-    // If no token, fall back to rule-based instantly
-    if (githubToken.isEmpty) {
-      await Future.delayed(const Duration(milliseconds: 600));
-      return generateRuleBasedResponse(query, inventory, sales, history);
-    }
-
-    try {
-      // 1. Construct System Context with Actual Data
-      final lowStock = inventory.where((p) => p.stock <= p.threshold).toList();
-      final today = DateTime.now();
-      final todaySales = sales.where((s) => s.date.day == today.day && s.date.month == today.month);
-      final revenue = todaySales.fold(0.0, (a, b) => a + b.total);
-      
-      final Map<String, int> demand = {};
-      for (var s in sales) for (var i in s.items) demand[i.name] = (demand[i.name] ?? 0) + i.qty;
-      final sortedDemand = demand.entries.toList()..sort((a,b) => b.value.compareTo(a.value));
-      final topSellers = sortedDemand.take(5).map((e) => "• ${e.key}: ${e.value} sold").join("\n");
-
-      // Build the FULL Inventory Summary
-      final fullInventorySummary = inventory.map((p) => 
-        "• ${p.emoji} ${p.name} | Stock: ${p.stock} | Price: ₹${p.price.toInt()} | Cat: ${p.category}"
-      ).join("\n");
-
-      final systemPrompt = """
-You are RetailIQ Advisor, a professional retail business analyst AI.
-You have access to the FULL records of the store inventory and performance metrics.
-
-[GENERAL CONTEXT]
-- Store Name: RetailIQ Demo
-- Total Revenue Today: ₹${revenue.toInt()} (${todaySales.length} bills processed)
-- Current Language: $language
-
-[TOP PERFORMING PRODUCTS]
-$topSellers
-
-[LOW STOCK ALERTS]
-${lowStock.isEmpty ? "All items healthy." : lowStock.map((p) => "• ${p.name} (${p.stock} left)").join("\n")}
-
-[FULL INVENTORY RECORDS]
-$fullInventorySummary
-
-ROLE: Provide precise, data-driven, strategic advice. 
-When asked about specific products, refer to the [FULL INVENTORY RECORDS].
-If asked about performance, refer to [TOP PERFORMING PRODUCTS].
-Always be professional, use bold for emphasis, and use emojis like 📦, 💰, 📈, 🚨 appropriately.
-""";
-
-      // 2. Map History to API format
-      final messages = [
-        {"role": "system", "content": systemPrompt},
-        ...history.map((m) => {
-          "role": m['role'] == 'ai' ? 'assistant' : 'user',
-          "content": m['text'] ?? ""
-        }),
-        {"role": "user", "content": query}
-      ];
-
-      // 3. API Call to GitHub Models
-      final response = await http.post(
-        Uri.parse(githubEndpoint),
-        headers: {
-          'Authorization': 'Bearer ${githubToken.trim()}',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          "model": githubModel,
-          "messages": messages,
-          "temperature": 0.5,
-          "max_tokens": 800,
-        }),
-      ).timeout(const Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        return body['choices'][0]['message']['content']?.trim() ?? "I analyzed the data but couldn't form a response.";
-      } else {
-        debugPrint("AI_BRAIN_ERROR: Status ${response.statusCode}");
-        debugPrint("AI_BRAIN_BODY: ${response.body}");
-        return generateRuleBasedResponse(query, inventory, sales, history);
-      }
-    } catch (e) {
-      debugPrint("AI_BRAIN_EXCEPTION: $e");
-      return generateRuleBasedResponse(query, inventory, sales, history);
-    }
+    return "I'm analyzing your store data. Ask me about stock levels or revenue! 😊";
   }
 }
-

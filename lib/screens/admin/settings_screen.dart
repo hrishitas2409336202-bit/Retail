@@ -21,6 +21,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _ownerNameController;
   late TextEditingController _ownerEmailController;
   late TextEditingController _ownerPhoneController;
+  late TextEditingController _openAIController;
+  late TextEditingController _githubTokenController;
 
   @override
   void initState() {
@@ -29,6 +31,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _storeNameController = TextEditingController(text: state.storeName);
     _upiController = TextEditingController(text: state.upiId);
     _upiNameController = TextEditingController(text: state.upiName);
+    _openAIController = TextEditingController(text: state.openAIApiKey);
+    _githubTokenController = TextEditingController(text: state.githubToken);
     _threshold = state.globalThreshold;
     _currency = state.currency;
     _taxRate = state.taxRate;
@@ -61,13 +65,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Divider(height: 1),
             _buildTextField(
               controller: _upiController,
-              label: 'UPI ID (fof QR Payments)',
+              label: 'UPI ID (for QR Payments)',
               icon: LucideIcons.qrCode,
+              hint: 'e.g. yourname@bank',
             ),
             const Divider(height: 1),
             _buildTextField(
               controller: _upiNameController,
-              label: 'Account Holder Name',
+              label: 'Payee Name (displayed on QR)',
               icon: LucideIcons.user,
             ),
           ]),
@@ -123,6 +128,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ]),
           const SizedBox(height: 32),
 
+          const SizedBox(height: 32),
+
+          _sectionHeader('AI Configuration'),
+          _buildCard(context, [
+            _buildTextField(
+              controller: _openAIController,
+              label: 'OpenAI API Key',
+              icon: LucideIcons.bot,
+              hint: 'sk-xxxxxxxxxxxxxxxxxxxxxxxx',
+              obscureText: true,
+            ),
+            _buildTextField(
+              controller: _githubTokenController,
+              label: 'GitHub Models Token',
+              icon: LucideIcons.github,
+              hint: 'ghp_xxxxxxxxxxxxxxxxxxxx',
+              obscureText: true,
+            ),
+          ]),
+          const SizedBox(height: 32),
+
           _sectionHeader('System Preferences'),
           _buildCard(context, [
             SwitchListTile(
@@ -142,9 +168,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 storeName: _storeNameController.text,
                 upiId: _upiController.text,
                 upiName: _upiNameController.text,
-                threshold: _threshold,
+                globalThreshold: _threshold,
                 currency: _currency,
                 taxRate: _taxRate,
+                openAIApiKey: _openAIController.text,
+                githubToken: _githubTokenController.text,
                 ownerName: _ownerNameController.text,
                 ownerEmail: _ownerEmailController.text,
                 ownerPhone: _ownerPhoneController.text,
@@ -191,13 +219,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildTextField({required TextEditingController controller, required String label, required IconData icon}) {
+  Widget _buildTextField({required TextEditingController controller, required String label, required IconData icon, String? hint, bool obscureText = false}) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: TextField(
         controller: controller,
+        obscureText: obscureText,
         decoration: InputDecoration(
           labelText: label,
+          hintText: hint,
           prefixIcon: Icon(icon, size: 20),
           border: InputBorder.none,
         ),
@@ -281,24 +311,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showLanguagePicker(BuildContext context, AppState state) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.cardBg(context),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: ['English', 'Hindi', 'Marathi'].map((l) => ListTile(
-          title: Text(l),
-          onTap: () {
-            state.setLanguage(l);
-            Navigator.pop(context);
-          },
-        )).toList(),
-      ),
-    );
-  }
-
   void _showResetConfirmation(BuildContext context, AppState state) {
     showDialog(
       context: context,
@@ -319,4 +331,3 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
-

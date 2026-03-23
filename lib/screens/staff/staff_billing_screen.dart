@@ -421,25 +421,6 @@ class _StaffBillingScreenState extends State<StaffBillingScreen> {
     );
   }
 
-  void _showLanguagePicker(BuildContext context, AppState state) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1E293B),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: ['English', 'Hindi', 'Marathi'].map((lang) => ListTile(
-          title: Text(lang, style: const TextStyle(color: Colors.white)),
-          onTap: () {
-            state.setLanguage(lang);
-            Navigator.pop(ctx);
-          },
-          trailing: state.currentLanguage == lang ? const Icon(LucideIcons.check, color: Colors.greenAccent) : null,
-        )).toList(),
-      ),
-    );
-  }
-
   void _showPaymentPicker(BuildContext context, AppState state, double total) {
     _cashController.text = total.toInt().toString();
     _cashReceived = total;
@@ -482,7 +463,7 @@ class _StaffBillingScreenState extends State<StaffBillingScreen> {
                 if (_selectedPaymentMethod == 'Online') ...[
                   const SizedBox(height: 20),
                   QrImageView(
-                    data: "upi://pay?pa=${state.upiId}&pn=${state.upiName}&am=$total&cu=INR",
+                    data: "upi://pay?pa=${Uri.encodeComponent(state.upiId)}&pn=${Uri.encodeComponent(state.upiName)}&am=${total.toStringAsFixed(2)}&cu=INR&tn=${Uri.encodeComponent('Payment for Store Order')}&tr=${Uri.encodeComponent('BILL-${DateTime.now().millisecondsSinceEpoch}')}",
                     size: 150.0,
                     foregroundColor: Colors.white,
                   ),

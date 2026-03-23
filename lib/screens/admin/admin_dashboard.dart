@@ -1458,37 +1458,6 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-  void _showLanguagePicker(BuildContext context, AppState state) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1E293B),
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text("Select Language",
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold)),
-          ),
-          ...['English', 'Hindi', 'Marathi'].map((lang) => ListTile(
-                title: Text(lang, style: const TextStyle(color: Colors.white)),
-                onTap: () {
-                  state.setLanguage(lang);
-                  Navigator.pop(ctx);
-                },
-                trailing: state.currentLanguage == lang
-                    ? const Icon(LucideIcons.check, color: Colors.greenAccent)
-                    : null,
-              )),
-          const SizedBox(height: 16),
-        ],
-      ),
-    );
   }
 }
 

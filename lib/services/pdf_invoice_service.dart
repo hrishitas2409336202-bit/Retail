@@ -64,9 +64,6 @@ class PdfInvoiceService {
                       ),
                       pw.Text(storeName.toUpperCase(), 
                         style: pw.TextStyle(font: fontBold, fontSize: 28, color: PdfColors.white)),
-                      pw.SizedBox(height: 2),
-                      pw.Text('PREMIUM RETAIL EXPERIENCE', 
-                        style: pw.TextStyle(font: fontRegular, fontSize: 9, color: PdfColors.blue100, letterSpacing: 2)),
                       pw.SizedBox(height: 16),
                       pw.Container(
                         padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -92,9 +89,6 @@ class PdfInvoiceService {
                         style: pw.TextStyle(font: fontBold, fontSize: 8, color: PdfColors.grey500)),
                       pw.Text(sale.date.toString().split('.')[0], 
                         style: pw.TextStyle(font: fontRegular, fontSize: 11, color: PdfColors.grey300)),
-                      pw.SizedBox(height: 8),
-                      pw.Text('POS SYSTEM: RIQ-2.0', 
-                        style: pw.TextStyle(font: fontItalic, fontSize: 8, color: PdfColors.grey600)),
                     ],
                   ),
                 ],
@@ -257,9 +251,6 @@ class PdfInvoiceService {
                 children: [
                   pw.Text('Thank you for choosing $storeName!', 
                     style: pw.TextStyle(font: fontBold, fontSize: 12, color: PdfColor.fromInt(0xFF0F172A))),
-                  pw.SizedBox(height: 6),
-                  pw.Text('Experience more at our digital portal: www.retailiq.app', 
-                    style: pw.TextStyle(font: fontRegular, fontSize: 9, color: PdfColors.blueAccent700)),
                   pw.SizedBox(height: 12),
                   pw.Container(
                     width: 200, height: 0.5,

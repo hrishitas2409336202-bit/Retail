@@ -357,25 +357,6 @@ class _StaffInventoryScreenState extends State<StaffInventoryScreen> {
     );
   }
 
-  void _showLanguagePicker(BuildContext context, AppState state) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1E293B),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: ['English', 'Hindi', 'Marathi'].map((lang) => ListTile(
-          title: Text(lang, style: const TextStyle(color: Colors.white)),
-          onTap: () {
-            state.setLanguage(lang);
-            Navigator.pop(ctx);
-          },
-          trailing: state.currentLanguage == lang ? const Icon(LucideIcons.check, color: Colors.greenAccent) : null,
-        )).toList(),
-      ),
-    );
-  }
-
   void _showUpdateStockDialog(BuildContext context, AppState state, Product p) {
     final controller = TextEditingController(text: p.stock.toString());
     showDialog(

@@ -31,12 +31,14 @@ class AppState extends ChangeNotifier {
   UserRole? _currentRole;
   ThemeMode _themeMode = ThemeMode.dark;
   String _currentLanguage = 'English'; // Default
-  String _storeName = 'My Smart Retail';
+  String _storeName = 'Retail IQ';
   int _globalThreshold = 20;
   String _currency = '₹';
   double _taxRate = 18.0; // Default 18% GST
   String _upiId = 'retail.iq@upi'; // Default UPI VPA
   String _upiName = 'Store Owner'; // Default Account Name
+  String _openAIApiKey = ''; // OpenAI API Key
+  String _githubToken = ''; // GitHub Models Token
   Map<String, dynamic> _ownerProfile = {
     'name': 'Store Owner',
     'email': 'owner@retailiq.com',
@@ -76,10 +78,70 @@ class AppState extends ChangeNotifier {
   double get taxRate => _taxRate;
   String get upiId => _upiId;
   String get upiName => _upiName;
+  String get openAIApiKey => _openAIApiKey;
+  String get githubToken => _githubToken;
   Map<String, dynamic> get ownerProfile => _ownerProfile;
   Map<String, dynamic> get staffProfile => _staffProfile;
   List<String> get events => _events.reversed.toList(); // Newest first
   
+  // Setters for Settings
+  Future<void> updateSettings({
+    String? storeName,
+    String? upiId,
+    String? upiName,
+    int? globalThreshold,
+    String? currency,
+    double? taxRate,
+    String? openAIApiKey,
+    String? githubToken,
+    String? ownerName,
+    String? ownerEmail,
+    String? ownerPhone,
+  }) async {
+    if (storeName != null) {
+      _storeName = storeName;
+      await _settingsBox.put('store_name', storeName);
+    }
+    if (upiId != null) {
+      _upiId = upiId;
+      await _settingsBox.put('upi_id', upiId);
+    }
+    if (upiName != null) {
+      _upiName = upiName;
+      await _settingsBox.put('upi_name', upiName);
+    }
+    if (openAIApiKey != null) {
+      _openAIApiKey = openAIApiKey;
+      await _settingsBox.put('openai_api_key', openAIApiKey);
+    }
+    if (githubToken != null) {
+      _githubToken = githubToken;
+      await _settingsBox.put('github_token', githubToken);
+    }
+    if (globalThreshold != null) {
+      _globalThreshold = globalThreshold;
+      await _settingsBox.put('global_threshold', globalThreshold);
+    }
+    if (currency != null) {
+      _currency = currency;
+      await _settingsBox.put('currency', currency);
+    }
+    if (taxRate != null) {
+      _taxRate = taxRate;
+      await _settingsBox.put('tax_rate', taxRate);
+    }
+    if (ownerName != null || ownerEmail != null || ownerPhone != null) {
+      _ownerProfile = {
+        'name': ownerName ?? _ownerProfile['name'],
+        'email': ownerEmail ?? _ownerProfile['email'],
+        'phone': ownerPhone ?? _ownerProfile['phone'],
+      };
+      await _settingsBox.put('owner_profile', _ownerProfile);
+    }
+    
+    notifyListeners();
+  }
+
   // -- Staff Dashboard Metrics --
   double get todayRevenue {
     final now = DateTime.now();
@@ -298,61 +360,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Google Cloud Translate API Configuration ──────────────────────────────
-  // To enable live translation, set your Google Cloud Translate API key below.
-  // Get a key from: https://console.cloud.google.com/apis/credentials
-  // Enable: Cloud Translation API.
-  // Leave empty to use pre-baked translations only.
-  static const String _googleTranslateApiKey = 'AIzaSyClON9XMXUtFFUUs85RYffXTajMs4VErlQ'; // Set your API key here
-  static const String _translateEndpoint =
-      'https://translation.googleapis.com/language/translate/v2';
-
-  // Map language display names to Google Translate target codes
-  static const Map<String, String> _langCodes = {
-    'English': 'en',
-    'Hindi': 'hi',
-    'Marathi': 'mr',
-  };
-
   /// Translate arbitrary text via Google Cloud Translate API.
-  /// Returns the original text if the API key is not set or the call fails.
+  /// Returns the original text as the app is English-only now.
   Future<String> translateDynamic(String text) async {
-    if (_currentLanguage == 'English') return text;
-    if (_googleTranslateApiKey.isEmpty) return text;
-
-    final targetCode = _langCodes[_currentLanguage] ?? 'en';
-    try {
-      final uri = Uri.parse('$_translateEndpoint?key=$_googleTranslateApiKey');
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'q': text,
-          'target': targetCode,
-          'format': 'text',
-        }),
-      ).timeout(const Duration(seconds: 5));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['data']['translations'][0]['translatedText'] as String? ?? text;
-      }
-    } catch (_) {
-      // Silently fall back to the original text
-    }
     return text;
   }
 
-  void setLanguage(String lang) async {
-    _currentLanguage = lang;
-    await _settingsBox.put('language', lang);
-    notifyListeners();
-    addEvent("Language changed to $lang");
-  }
-
   String tr(String key) {
-    // Basic pre-baked translations for critical UI
-    final maps = {
+    const maps = {
       'English': {
         'store_command_center': 'Store Command Center',
         'Command Center Actions': 'Command Center Actions',
@@ -368,7 +383,7 @@ class AppState extends ChangeNotifier {
         'admin_role': 'Store Owner / Admin',
         'admin_desc': 'Manage inventory, view AI insights',
         'staff_role': 'Store Staff / Cashier',
-        'staff_desc': 'Billing, scanning and stock check',
+        'staff_desc': 'Billing, scanning & stock check',
         'logout': 'Logout',
         'inventory': 'Inventory',
         'billing': 'Billing',
@@ -378,7 +393,7 @@ class AppState extends ChangeNotifier {
         'add_to_cart': 'Add to Cart',
         'checkout': 'Checkout',
         'stock': 'Stock',
-        'daily_revenue': 'Today\'s Revenue',
+        'daily_revenue': 'Today Revenue',
         'total_transactions': 'Total Transactions',
         'low_stock_items': 'Low Stock Items',
         'Vegetables & Fruits': 'Vegetables & Fruits',
@@ -465,7 +480,6 @@ class AppState extends ChangeNotifier {
         'Profile': 'Profile',
         'Language': 'Language',
         'Today Sales': 'Today Sales',
-        'Revenue': 'Revenue',
         'Tickets': 'Tickets',
         'Personal Information': 'Personal Information',
         'Full Name': 'Full Name',
@@ -478,262 +492,10 @@ class AppState extends ChangeNotifier {
         'Employee ID': 'Employee ID',
         'Account': 'Account',
         'logout_subtitle': 'Sign out of this session',
-      },
-      'Hindi': {
-        'store_command_center': 'स्टोर कमांड सेंटर',
-        'Command Center Actions': 'कमांड सेंटर कार्य',
-        'Promotions': 'प्रचार (Promotions)',
-        'Loyalty Hub': 'लॉयल्टी हब',
-        'Risk Report': 'जोखिम रिपोर्ट',
-        'Analytics': 'एनालिटिक्स',
-        'AI Insight': 'AI अंतर्दृष्टि',
-        'Suppliers': 'आपूर्तिकर्ता',
-        'login_title': 'रिटेलआईक्यू',
-        'login_subtitle': 'स्मार्ट इन्वेंटरी और निर्णय',
-        'role_select': 'जारी रखने के लिए अपनी भूमिका चुनें',
-        'admin_role': 'स्टोर मालिक / एडमिन',
-        'admin_desc': 'इन्वेंट्री प्रबंधित करें, AI अंतर्दृष्टि देखें',
-        'staff_role': 'स्टोर कर्मचारी / कैशियर',
-        'staff_desc': 'बिलिंग, स्कैनिंग और स्टॉक जांच',
-        'logout': 'लॉग आउट',
-        'inventory': 'इन्वेंटरी',
-        'billing': 'बिलिंग',
-        'history': 'इतिहास',
-        'settings': 'सेटिंग्स',
-        'search_hint': 'सामान खोजें...',
-        'add_to_cart': 'कार्ट में जोड़ें',
-        'checkout': 'चेकआउट',
-        'stock': 'स्टॉक',
-        'daily_revenue': 'आज का राजस्व',
-        'total_transactions': 'कुल लेनदेन',
-        'low_stock_items': 'कम स्टॉक वाली वस्तुएं',
-        'Vegetables & Fruits': 'सब्जियां और फल',
-        'Atta, Rice & Dal': 'आटा, चावल और दाल',
-        'Oil, Ghee & Masala': 'तेल, घी और मसाला',
-        'Dairy, Bread & Eggs': 'डेयरी, ब्रेड और अंडे',
-        'Bakery & Biscuits': 'बेकरी और बिस्कुट',
-        'Dry Fruits & Cereals': 'सूखे मेवे और अनाज',
-        'Chicken, Meat & Fish': 'चिकन, मांस और मछली',
-        'Kitchenware & Appliances': 'बर्तन और उपकरण',
-        'Chips & Namkeen': 'चिप्स और नमकीन',
-        'Sweets & Chocolates': 'मिठाई और चॉकलेट',
-        'Drinks & Juices': 'ड्रिंक्स और जूस',
-        'Tea, Coffee & Milk Drinks': 'चाय, कॉफी और दूध',
-        'Instant Foods': 'इंस्टेंट फूड्स',
-        'Ice Creams & Frozen Foods': 'आइसक्रीम और फ्रोजन फूड',
-        'Ice Cream & Frozen Food': 'आइसक्रीम और फ्रोजन फूड',
-        'Snacks & Packaged Foods': 'स्नैक्स और डिब्बाबंद खाद्य पदार्थ',
-        'Beverages': 'पेय पदार्थ',
-        'Cleaning & Household': 'सफाई और घरेलू सामान',
-        'Personal Care': 'व्यक्तिगत देखभाल',
-        'Manage your stock and products': 'स्टॉक और उत्पादों का प्रबंधन करें',
-        'Search items, codes, or shelf...': 'सामान, कोड या शेल्फ खोजें...',
-        'Add Product': 'उत्पाद जोड़ें',
-        'Update Stock': 'स्टॉक अद्यतन करें',
-        'Items': 'सामान',
-        'Browse': 'ब्राउज़ करें',
-        'Browse Category': 'श्रेणी ब्राउज़ करें',
-        'Total Items': 'कुल सामान',
-        'in stock': 'स्टॉक में',
-        'LOW STOCK < 20': 'स्टॉक कम < 20',
-        'LOW STOCK': 'स्टॉक कम',
-        'No products found': 'मद नहीं मिली',
-        'items selected': 'सामान चुने गए',
-        'Revenue': 'राजस्व',
-        'Transactions': 'लेनदेन',
-        'Avg Bill Value': 'औसत बिल',
-        'Low Stock': 'कम स्टॉक',
-        'of ₹500 target': '₹500 लक्ष्य का',
-        'AI Business Advisor': 'AI बिजनेस सलाहकार',
-        'ai_analysis_loading': 'मैं आपके इन्वेंट्री रुझानों का विश्लेषण कर रहा हूँ। पूरी रिपोर्ट के लिए टैप करें।',
-        'Inventory Risk Radar': 'इन्वेंटरी रिस्क रडार',
-        'Products below restock threshold': 'पुनर्प्राप्ति सीमा से नीचे उत्पाद',
-        'All products are well stocked!': 'सभी उत्पादों का स्टॉक अच्छा है!',
-        'OUT': 'खत्म',
-        'LOW': 'कम',
-        'CRITICAL': 'गंभीर',
-        'Out': 'खत्म',
-        'Low': 'कम',
-        'Critical': 'गंभीर',
-        'Clear filter': 'फ़िल्टर हटाएं',
-        'show all': 'सभी दिखाएं',
-        'No products in this category': 'इस श्रेणी में कोई उत्पाद नहीं है',
-        'Welcome back': 'स्वागत है',
-        'bills today': 'आज के बिल',
-        'AI Scanner': 'AI स्कैनर',
-        'OpenFood Powered': 'OpenFood द्वारा संचालित',
-        'products': 'उत्पाद',
-        'support': 'सहायता',
-        'Get help': 'सहायता लें',
-        'Low Stock Alerts': 'कम स्टॉक अलर्ट',
-        'ITEMS': 'सामान',
-        'Out of Stock!': 'स्टॉक खत्म!',
-        'left': 'बाकी',
-        'Bills History': 'बिल इतिहास',
-        'total transactions': 'कुल लेनदेन',
-        'Top Selling Today': 'आज की सबसे ज्यादा बिक्री',
-        'units sold': 'यूनिट बिकीं',
-        'NEW BILL': 'नया बिल',
-        'Master Inventory': 'मास्टर इन्वेंटरी',
-        'Search master inventory...': 'मास्टर इन्वेंटरी खोजें...',
-        'Add Master Product': 'मास्टर उत्पाद जोड़ें',
-        'Stock: ': 'स्टॉक: ',
-        'Edit details': 'विवरण संपादित करें',
-        'Delete product': 'उत्पाद हटाएं',
-        'Delete Product?': 'उत्पाद हटाएं?',
-        'delete_confirm_msg': 'क्या आप वाकई इस उत्पाद को मास्टर डेटाबेस से हटाना चाहते हैं?',
-        'Cancel': 'रद्द करें',
-        'Add': 'जोड़ें',
-        'Update': 'अपडेट करें',
-        'Delete': 'हटाएं',
-        'Sold': 'बिका',
-        'Sales Leaderboard': 'बिक्री लीडरबोर्ड',
-        'Profile': 'प्रोफ़ाइल',
-        'Language': 'भाषा',
-        'Today Sales': 'आज की बिक्री',
-        'Revenue': 'राजस्व',
-        'Tickets': 'टिकट',
-        'Personal Information': 'व्यक्तिगत जानकारी',
-        'Full Name': 'पूरा नाम',
-        'Email': 'ईमेल',
-        'Phone': 'फोन',
-        'Work Information': 'कार्य संबंधी जानकारी',
-        'Store': 'स्टोर',
-        'Role': 'भूमिका',
-        'Shift': 'शिफ्ट',
-        'Employee ID': 'कर्मचारी आईडी',
-        'Account': 'खाता',
-        'logout_subtitle': 'इस सत्र से लॉग आउट करें',
-      },
-      'Marathi': {
-        'store_command_center': 'स्टोअर कमांड सेंटर',
-        'Command Center Actions': 'कमांड सेंटर क्रिया',
-        'Promotions': 'प्रमोशन्स',
-        'Loyalty Hub': 'लॉयल्टी हब',
-        'Risk Report': 'धोका अहवाल',
-        'Analytics': 'अॅनालिटिक्स',
-        'AI Insight': 'AI इनसाइट',
-        'Suppliers': 'पुरवठादार',
-        'login_title': 'रिटेल-आय-क्यू',
-        'login_subtitle': 'स्मार्ट इन्व्हेंटरी आणि निर्णय',
-        'role_select': 'सुरू ठेवण्यासाठी तुमची भूमिका निवडा',
-        'admin_role': 'स्टोअर मालक / प्रशासक',
-        'admin_desc': 'इन्व्हेंटरी व्यवस्थापित करा, AI अंतर्दृष्टी पहा',
-        'staff_role': 'स्टोअर कर्मचारी / कॅशियर',
-        'staff_desc': 'बिलिंग, स्कॅनिंग आणि स्टॉक चेक',
-        'logout': 'लॉग आउट',
-        'inventory': 'इन्व्हेंटरी',
-        'billing': 'बिलिंग',
-        'history': 'इतिहास',
-        'settings': 'सेटिंग्ज',
-        'search_hint': 'वस्तू शोधा...',
-        'add_to_cart': 'कार्टमध्ये जोडा',
-        'checkout': 'चेकआउट',
-        'stock': 'स्टॉक',
-        'daily_revenue': 'आजचा महसूल',
-        'total_transactions': 'एकूण व्यवहार',
-        'low_stock_items': 'कमी स्टॉक वस्तू',
-        'Vegetables & Fruits': 'भाज्या आणि फळे',
-        'Atta, Rice & Dal': 'पीठ, तांदूळ आणि डाळ',
-        'Oil, Ghee & Masala': 'तेल, तूप आणि मसाला',
-        'Dairy, Bread & Eggs': 'डेअरी, ब्रेड आणि अंडी',
-        'Bakery & Biscuits': 'बेकरी आणि बिस्किटे',
-        'Dry Fruits & Cereals': 'सुकामेवा आणि तृणधान्ये',
-        'Chicken, Meat & Fish': 'चिकन, मांस आणि मासे',
-        'Kitchenware & Appliances': 'भांडी आणि उपकरणे',
-        'Chips & Namkeen': 'चिप्स आणि नमकीन',
-        'Sweets & Chocolates': 'मिठाई आणि चॉकोलेट',
-        'Drinks & Juices': 'पेये आणि ज्यूस',
-        'Tea, Coffee & Milk Drinks': 'चहा, कॉफी आणि दूध',
-        'Instant Foods': 'इन्स्टंट फूड्स',
-        'Ice Creams & Frozen Foods': 'आईस्क्रीम आणि फ्रोझन फूड',
-        'Ice Cream & Frozen Food': 'आईस्क्रीम आणि फ्रोझन फूड',
-        'Snacks & Packaged Foods': 'स्नॅक्स आणि पॅकेज्ड पदार्थ',
-        'Beverages': 'पेये',
-        'Cleaning & Household': 'स्वच्छता आणि घरगुती वस्तू',
-        'Personal Care': 'वैयक्तिक निगा',
-        'Manage your stock and products': 'स्टॉक आणि उत्पादने व्यवस्थापित करा',
-        'Search items, codes, or shelf...': 'वस्तू, कोड किंवा शेल्फ शोधा...',
-        'Add Product': 'उत्पादन जोडा',
-        'Update Stock': 'स्टॉक अपडेट करा',
-        'Items': 'वस्तू',
-        'Browse': 'ब्राउझ करा',
-        'Browse Category': 'श्रेणी ब्राउझ करा',
-        'Total Items': 'एकूण वस्तू',
-        'in stock': 'स्टॉकमध्ये',
-        'LOW STOCK < 20': 'स्टॉक कमी < 20',
-        'LOW STOCK': 'स्टॉक कमी',
-        'No products found': 'वस्तू सापडली नाही',
-        'items selected': 'वस्तू निवडल्या',
-        'Revenue': 'महसूल',
-        'Transactions': 'व्यवहार',
-        'Avg Bill Value': 'सरासरी बिल',
-        'Low Stock': 'कमी स्टॉक',
-        'of ₹500 target': '₹500 लक्ष्याचे',
-        'AI Business Advisor': 'AI बिजनेस सल्लागार',
-        'ai_analysis_loading': 'मी तुमच्या इन्व्हेंटरी ट्रेंडचे विश्लेषण करत आहे. पूर्ण अहवालासाठी टॅप करा.',
-        'Inventory Risk Radar': 'इन्व्हेंटरी रिस्क रडार',
-        'Products below restock threshold': 'पुनर्प्राप्ती मर्यादेपेक्षा कमी उत्पादने',
-        'All products are well stocked!': 'सर्व उत्पादनांचा स्टॉक चांगला आहे!',
-        'OUT': 'संपले',
-        'LOW': 'कमी',
-        'CRITICAL': 'गंभीर',
-        'Out': 'संपले',
-        'Low': 'कमी',
-        'Critical': 'गंभीर',
-        'Clear filter': 'फिल्टर काढा',
-        'show all': 'सर्व दाखवा',
-        'No products in this category': 'या श्रेणीमध्ये कोणतेही उत्पादन नाही',
-        'Welcome back': 'पुन्हा स्वागत आहे',
-        'bills today': 'आजची बिले',
-        'AI Scanner': 'AI स्कॅनर',
-        'OpenFood Powered': 'OpenFood द्वारे संचालित',
-        'products': 'उत्पादने',
-        'support': 'मदत',
-        'Get help': 'मदत घ्या',
-        'Low Stock Alerts': 'कमी स्टॉक अलर्ट',
-        'ITEMS': 'वस्तू',
-        'Out of Stock!': 'स्टॉक संपला!',
-        'left': 'बाकी',
-        'Bills History': 'बिल इतिहास',
-        'total transactions': 'एकूण व्यवहार',
-        'Top Selling Today': 'आजची सर्वाधिक विक्री',
-        'units sold': 'यूनिट विकले',
-        'NEW BILL': 'नवीन बिल',
-        'Master Inventory': 'मास्टर इन्व्हेंटरी',
-        'Search master inventory...': 'मास्टर इन्व्हेंटरी शोधा...',
-        'Add Master Product': 'मास्टर उत्पादन जोडा',
-        'Stock: ': 'स्टॉक: ',
-        'Edit details': 'तपशील संपादित करा',
-        'Delete product': 'उत्पादन काढा',
-        'Delete Product?': 'उत्पादन काढायचे?',
-        'delete_confirm_msg': 'तुम्ही खात्रीने हे उत्पादन मास्टर डेटाबेसमधून काढू इच्छिता?',
-        'Cancel': 'रद्द करा',
-        'Add': 'जोडा',
-        'Update': 'अपडेट करा',
-        'Delete': 'काढा',
-        'Sold': 'विकले',
-        'Sales Leaderboard': 'विक्री लीडरबोर्ड',
-        'Profile': 'प्रोफाइल',
-        'Language': 'भाषा',
-        'Today Sales': 'आजची विक्री',
-        'Revenue': 'महसूल',
-        'Tickets': 'तिकीट',
-        'Personal Information': 'वैयक्तिक माहिती',
-        'Full Name': 'पूर्ण नाव',
-        'Email': 'ईमेल',
-        'Phone': 'फोन',
-        'Work Information': 'कामाची माहिती',
-        'Store': 'स्टोअर',
-        'Role': 'भूमिका',
-        'Shift': 'शिफ्ट',
-        'Employee ID': 'कर्मचारी आयडी',
-        'Account': 'खाते',
-        'logout_subtitle': 'या सत्रातून बाहेर पडा',
       }
     };
 
-    return maps[_currentLanguage]?[key] ?? key;
+    return maps['English']?[key] ?? key;
   }
 
   void addEvent(String msg) {
@@ -769,14 +531,23 @@ class AppState extends ChangeNotifier {
       
       _loadData();
 
-      // Ensure some products are explicitly expired/expiring immediately for demonstration
-      if (_inventory.isNotEmpty) {
-        _inventory[0].expires = DateTime.now().subtract(const Duration(days: 2)).toIso8601String().split('T').first;
-        if (_inventory.length > 1) {
-          _inventory[1].expires = DateTime.now().add(const Duration(days: 1)).toIso8601String().split('T').first;
-        }
-        await _inventoryBox.put(_inventory[0].id, _inventory[0].toJson());
-        if (_inventory.length > 1) await _inventoryBox.put(_inventory[1].id, _inventory[1].toJson());
+      // Set realistic near-expiry dates across 6 products for demonstration
+      final now = DateTime.now();
+      final expiryDemos = [
+        -2, // index 0 → EXPIRED (2 days ago)
+        0,  // index 1 → TODAY
+        1,  // index 2 → TOMORROW
+        2,  // index 3 → 2 DAYS
+        3,  // index 4 → 3 DAYS
+        4,  // index 5 → 4 DAYS
+      ];
+      for (int i = 0; i < expiryDemos.length && i < _inventory.length; i++) {
+        _inventory[i].expires = now
+            .add(Duration(days: expiryDemos[i]))
+            .toIso8601String()
+            .split('T')
+            .first;
+        await _inventoryBox.put(_inventory[i].id, _inventory[i].toJson());
       }
 
       _loadEvents();
@@ -803,12 +574,19 @@ class AppState extends ChangeNotifier {
       _currentLanguage = _settingsBox.get('language', defaultValue: 'English');
 
       _unsyncedCount = _settingsBox.get('unsynced_count', defaultValue: 0);
-      _storeName = _settingsBox.get('store_name', defaultValue: 'My Smart Retail');
+      _storeName = _settingsBox.get('store_name', defaultValue: 'Retail IQ');
+      if (_storeName == 'My Smart Retail') {
+        _storeName = 'Retail IQ'; // Force upgrade
+        _settingsBox.put('store_name', 'Retail IQ');
+      }
+      
       _globalThreshold = _settingsBox.get('global_threshold', defaultValue: 10);
       _currency = _settingsBox.get('currency', defaultValue: '₹');
       _taxRate = _settingsBox.get('tax_rate', defaultValue: 18.0);
-    _upiId = _settingsBox.get('upi_id', defaultValue: 'retail.iq@upi');
-    _upiName = _settingsBox.get('upi_name', defaultValue: 'Store Owner');
+      _upiId = _settingsBox.get('upi_id', defaultValue: 'retail.iq@upi');
+      _upiName = _settingsBox.get('upi_name', defaultValue: 'Store Owner');
+      _openAIApiKey = _settingsBox.get('openai_api_key', defaultValue: '');
+      _githubToken = _settingsBox.get('github_token', defaultValue: _githubToken);
       _ownerProfile = Map<String, dynamic>.from(_settingsBox.get('owner_profile', defaultValue: _ownerProfile));
       _staffProfile = Map<String, dynamic>.from(_settingsBox.get('staff_profile', defaultValue: _staffProfile));
       
@@ -1500,7 +1278,7 @@ class AppState extends ChangeNotifier {
   List<Map<String, dynamic>> getAIAdvisorSuggestions() {
     final suggestions = <Map<String, dynamic>>[];
     
-    // Low Stock Alert with Prediction
+    // 1. Low Stock Alert with Prediction
     final lowStock = _inventory.where((p) => p.stock <= p.threshold).toList();
     if (lowStock.isNotEmpty) {
       final days = getDaysRemaining(lowStock[0].id);
@@ -1512,7 +1290,30 @@ class AppState extends ChangeNotifier {
       });
     }
 
-    // Risk Alert
+    // 2. Revenue Summary (New)
+    final report = generateDailyReport();
+    if (report['revenue'] > 0) {
+      suggestions.add({
+        'title': '💰 Revenue Milestone',
+        'text': AIResponseFormatter.formatRevenue(report['revenue'], report['transactions']),
+        'type': 'success',
+        'icon': '💰'
+      });
+    }
+
+    // 3. Top Sellers (New)
+    final leaderboard = getLeaderboard();
+    if (leaderboard.isNotEmpty) {
+      final top3Names = leaderboard.take(3).map((e) => e['name'] as String).toList();
+      suggestions.add({
+        'title': '🏆 Trending Now',
+        'text': AIResponseFormatter.formatTopSellers(top3Names),
+        'type': 'info',
+        'icon': '🏆'
+      });
+    }
+
+    // 4. Risk Alert
     final highRisk = getRiskRadar().where((r) => r['level'] == 'High').toList();
     if (highRisk.isNotEmpty) {
       suggestions.add({
@@ -1523,7 +1324,7 @@ class AppState extends ChangeNotifier {
       });
     }
 
-    // Expiry Suggestion
+    // 5. Expiry Suggestion
     for (var p in _inventory) {
       if (p.expires != null && p.expires!.contains('day')) {
          int days = int.tryParse(p.expires!.split(' ')[0]) ?? 99;
@@ -1572,40 +1373,6 @@ class AppState extends ChangeNotifier {
       data[date] = (data[date] ?? 0) + 1;
     }
     return data;
-  }
-
-  Future<void> updateSettings({
-    required String storeName,
-    required String upiId,
-    required String upiName,
-    required int threshold,
-    required String currency,
-    required double taxRate,
-    String? ownerName,
-    String? ownerEmail,
-    String? ownerPhone,
-  }) async {
-    _storeName = storeName;
-    _upiId = upiId;
-    _upiName = upiName;
-    _globalThreshold = threshold;
-    _currency = currency;
-    _taxRate = taxRate;
-
-    if (ownerName != null) _ownerProfile['name'] = ownerName;
-    if (ownerEmail != null) _ownerProfile['email'] = ownerEmail;
-    if (ownerPhone != null) _ownerProfile['phone'] = ownerPhone;
-
-    await _settingsBox.put('store_name', storeName);
-    await _settingsBox.put('upi_id', upiId);
-    await _settingsBox.put('upi_name', upiName);
-    await _settingsBox.put('global_threshold', threshold);
-    await _settingsBox.put('currency', currency);
-    await _settingsBox.put('tax_rate', taxRate);
-    await _settingsBox.put('owner_profile', _ownerProfile);
-
-    addEvent("Settings & Profile updated.");
-    notifyListeners();
   }
 
   Future<void> updateStaffProfile({required String name, required String email, required String phone}) async {
